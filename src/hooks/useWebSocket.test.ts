@@ -2,17 +2,21 @@ import { mount } from '@vue/test-utils'
 import useWebSocket from './useWebSocket'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 
+const mockedComponent = {
+  template: '<div> {{ data }}</div>',
+  setup() {
+    const { data } = useWebSocket<{ test: string }>({ key: 'value' })
+    return { data }
+  },
+}
+
 describe('useWebSocket', () => {
   let mockWebSocket: WebSocket
 
   beforeEach(() => {
-    // Mock the WebSocket constructor
     global.WebSocket = vi.fn(() => {
       mockWebSocket = {
-        send: vi.fn(),
         close: vi.fn(),
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
         onopen: vi.fn(),
         onclose: vi.fn(),
         onerror: vi.fn(),
@@ -27,56 +31,34 @@ describe('useWebSocket', () => {
   })
 
   it('initializes WebSocket and updates data on message', async () => {
-    const wrapper = mount({
-      template: '<div></div>',
-      setup() {
-        const { data } = useWebSocket<{ test: string }>({ key: 'value' })
-        return { data }
-      },
-    })
+    const wrapper = mount({ ...mockedComponent })
 
-    // Simulate WebSocket connection opening
     mockWebSocket.onopen?.(new Event('open'))
     expect(mockWebSocket.onopen).toBeTruthy()
 
-    // Simulate receiving a message
     const testMessage = { test: 'hello' }
     const messageEvent = new MessageEvent('message', {
       data: JSON.stringify(testMessage),
     })
     mockWebSocket.onmessage?.(messageEvent)
 
-    // Assert that `data` was updated with the message data
     expect(wrapper.vm.data).toEqual(testMessage)
   })
 
   it('handles WebSocket error gracefully', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { })
-    mount({
-      template: '<div></div>',
-      setup() {
-        useWebSocket({ key: 'value' })
-      },
-    })
+    mount({ ...mockedComponent })
 
-    // Simulate an error
     const errorEvent = new Event('error')
     mockWebSocket.onerror?.(errorEvent)
 
-    // Check that an error was logged to console
     expect(consoleErrorSpy).toHaveBeenCalled()
     consoleErrorSpy.mockRestore()
   })
 
   it('closes WebSocket connection on unmount', () => {
-    const wrapper = mount({
-      template: '<div></div>',
-      setup() {
-        useWebSocket({ key: 'value' })
-      },
-    })
+    const wrapper = mount({ ...mockedComponent })
 
-    // Check that WebSocket closes on unmount
     wrapper.unmount()
     expect(mockWebSocket.close).toHaveBeenCalled()
   })
